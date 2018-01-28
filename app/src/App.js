@@ -1,22 +1,23 @@
 import React, { Component } from 'react';
 import './App.css';
-import ReactCountdownClock from 'react-countdown-clock';
+import Switch from 'react-toggle-switch'
 import AWS from 'aws-sdk';
 import AWSIoTData from 'aws-iot-device-sdk';
 
 class App extends Component {
-  constructor() {
-    super();
+  constructor(props) {
+    super(props);
     this.state = {
       thingState: {},
-      secondsLeft: NaN,
-      paused: true
+      switched: false
     };
+    
     this.pushButton = this.pushButton.bind(this);
-    this.countdownZero = this.countdownZero.bind(this);
+
     this.handleNewThingState = this.handleNewThingState.bind(this);
     this.getThingState = this.getThingState.bind(this);
     this.shadowRegistered = false;
+
     AWS.config.update({
       region: process.env.REACT_APP_Region,
       credentials: new AWS.CognitoIdentityCredentials({
@@ -24,10 +25,8 @@ class App extends Component {
       })
     });
     this.thingName = process.env.REACT_APP_THING_NAME;
-    // this.iotdata = new AWS.IotData({
-    //   endpoint: process.env.REACT_APP_IOT_ENDPOINT,
-    // });
   }
+
   componentDidMount() {
     //
     // Create the AWS IoT shadows object.  Note that the credentials must be
@@ -69,6 +68,7 @@ class App extends Component {
        secretKey: '',
        sessionToken: ''
     });
+    
     console.log("this.shadows");
     console.log(this.shadows);
     var cognitoIdentity = new AWS.CognitoIdentity();
@@ -138,48 +138,70 @@ class App extends Component {
       }
     }.bind(this));
   }
+  
   getThingState() {
     console.log("getting thing "+ this.thingName);
     this.clientTokenGet = this.shadows.get(this.thingName);
     console.log("sent request " + this.clientTokenGet);
   }
+  
   handleNewThingState(stateObject) {
     if (stateObject.state.reported === undefined) {
       stateObject.state.reported = stateObject.state.desired;
       console.warn("no reported thing state, using desired");
     }
-    var stateChanges = {thingState: stateObject, paused: false};
-    if (this.state.thingState.state) console.log(this.state.thingState.state.reported.pushedAt);
-    if (this.state.thingState.state === undefined || stateObject.state.reported.pushedAt !== this.state.thingState.state.reported.pushedAt) {
-      stateChanges.secondsLeft = this.timeLeft(stateObject);
-      this.setState({secondsLeft: NaN, paused: false});
+    
+    var stateChanges = {thingState: stateObject, switched: false};
+
+    // if (this.state.thingState.state) console.log(this.state.thingState.state.reported.pushedAt);
+    if (this.state.thingState.state === undefined || stateObject.state.reported.Power !== this.state.thingState.state.reported.Power) {
+      this.setState({
+        switched: false});
       this.setState(stateChanges);
     }
   }
+  
   componentWillUnmount () {
-      clearInterval(this.timer);
+    console.log("componentWillUnmount")
+      // clearInterval(this.timer);
   }
+
   render() {
     return (
       <div className="App">
+        The SeriAlexa Device {this.thingName} is {this.getPowerState()}&nbsp;
         <div className="App-canvasContainer">
-          <ReactCountdownClock ref={(countdown) => { this._countdown = countdown; }}
-                               seconds={this.state.secondsLeft}
-                               paused={this.state.paused}
-                               pausedText="▐▐ "
-                               color="#000"
-                               alpha={0.9}
-                               size={250}
-                               onComplete={this.countdownZero}
-                               onClick={this.pushButton}
-                               />
+          <Switch 
+             on={this.getPowerOn()}
+             onClick={this.pushButton}
+         />
         </div>
       </div>
     );
   }
+  
+  getPowerOn() {
+    var powerOn = false
+    
+    console.log(this.state.thingState)
+    if (this.state.thingState.state !== undefined) {
+      powerOn = this.state.thingState.state.reported.Power === "ON"
+    }
+    
+    return powerOn
+  }
+  
+  getPowerState() {
+    return (this.state.thingState.state === undefined ? "unknown" : this.state.thingState.state.reported.Power)
+  }
 
   pushButton() {
-    var state = {state: {desired: {pushedAt: this.nowInSeconds(), pusher: 'Anonymous App User', intervalSeconds: 60}}};
+    var desiredPowerState = "STANDBY"
+    if (this.state.thingState.state.reported.Power === desiredPowerState) {
+      desiredPowerState = "ON"
+    }
+    
+    var state = {state: {desired: {Power: desiredPowerState}}};
     this.clientTokenUpdate = this.shadows.update(this.thingName, state);
     //
     // The update method returns a clientToken; if non-null, this value will
@@ -193,26 +215,6 @@ class App extends Component {
       console.warn('update shadow failed, other operation still in progress');
     } else {
       console.log("Shadow service received update " + this.clientTokenUpdate);
-    }
-  }
-
-  countdownZero() {
-    //alert("zero");
-  }
-
-  nowInSeconds() {
-    return Math.floor(Date.now() / 1000);
-  }
-
-  timeLeft(thingState) {
-    if (thingState.state && thingState.state.reported && thingState.state.reported.pushedAt) {
-      var secondsLeft = (thingState.state.reported.pushedAt + thingState.state.reported.intervalSeconds) - this.nowInSeconds();
-      secondsLeft = secondsLeft < 0 ? 0 : Math.min(secondsLeft, thingState.state.reported.intervalSeconds);
-      console.log(secondsLeft);
-      return secondsLeft;
-    } else {
-      console.log("No reported thing state, returning secondsLeft as NaN :(");
-      return NaN
     }
   }
 }

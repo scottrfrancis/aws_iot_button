@@ -25,19 +25,5 @@
   to { transform: rotate(360deg); }
 }
 
-.react-countdown-clock canvas {
-  top:0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  /*margin: 50px auto;*/
-  margin: auto auto;
-  display: flex;
-  /*position: static !important;*/
-  cursor: pointer;
-}
+@import "../node_modules/react-toggle-switch/dist/css/switch.min.css" 
 
-
-.react-countdown-clock {
-
-}
